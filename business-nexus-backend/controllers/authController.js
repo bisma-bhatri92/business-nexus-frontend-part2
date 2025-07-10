@@ -2,76 +2,78 @@ const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
-// ✅ Register new user
+// REGISTER
 const register = async (req, res) => {
-  const { name, email, password, role } = req.body;
-
   try {
-    const existingUser = await User.findOne({ email });
-    if (existingUser)
-      return res.status(400).json({ error: "User already exists" });
+    const { name, email, password, role } = req.body;
 
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) return res.status(400).json({ error: "User already exists" });
+
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newUser = await User.create({
-      name,
-      email,
-      password: hashedPassword,
-      role,
+    // Create user
+    const user = new User({ name, email, password: hashedPassword, role });
+    await user.save();
+
+    // Generate token
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "1d",
     });
 
-    const token = jwt.sign({ id: newUser._id }, "secret_key");
-
-    res.json({ message: "Registered successfully", user: newUser, token });
+    res.status(201).json({ user, token });
   } catch (err) {
     console.error("Registration failed:", err);
     res.status(500).json({ error: "Registration failed" });
   }
 };
 
-// ✅ Login user
+// LOGIN
 const login = async (req, res) => {
-  const { email, password } = req.body;
-
   try {
+    const { email, password } = req.body;
+
+    // Find user
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ error: "User not found" });
 
+    // Check password
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch)
-      return res.status(400).json({ error: "Invalid credentials" });
+    if (!isMatch) return res.status(400).json({ error: "Invalid credentials" });
 
-    const token = jwt.sign({ id: user._id }, "secret_key");
+    // Generate token
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "1d",
+    });
 
-    res.json({ message: "Login successful", user, token });
+    res.status(200).json({ user, token });
   } catch (err) {
     console.error("Login failed:", err);
     res.status(500).json({ error: "Login failed" });
   }
 };
 
-// ✅ Update profile info
+// UPDATE PROFILE
 const updateProfile = async (req, res) => {
-  const { userId, name, email, role } = req.body;
-
   try {
-    const updatedUser = await User.findByIdAndUpdate(
+    const { userId, name, email, role } = req.body;
+
+    const user = await User.findByIdAndUpdate(
       userId,
       { name, email, role },
       { new: true }
     );
 
-    if (!updatedUser)
-      return res.status(404).json({ error: "User not found" });
-
-    res.json({ message: "Profile updated!", user: updatedUser });
+    res.json({ user });
   } catch (err) {
-    console.error("Update failed:", err);
-    res.status(500).json({ error: "Update failed" });
+    console.error("Profile update failed:", err);
+    res.status(500).json({ error: "Profile update failed" });
   }
 };
 
-// ✅ Export all controllers
+// Export functions
 module.exports = {
   register,
   login,
